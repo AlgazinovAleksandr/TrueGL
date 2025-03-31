@@ -1,0 +1,46 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trugle - The Truth Browser</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="browser-container">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="tabs">
+                <div class="tab active">New Tab</div>
+                <div class="tab">+</div>
+            </div>
+            <div class="controls">
+                <button class="control-btn">←</button>
+                <button class="control-btn">→</button>
+                <button class="control-btn">↻</button>
+            </div>
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Search for truth...">
+                <button onclick="searchTruth()">Go</button>
+            </div>
+            <div class="truth-meter">
+                <span>Truth Score: </span>
+                <div class="truth-bar">
+                    <div class="truth-fill" id="truthFill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-area" id="contentArea">
+            <div class="welcome-message">
+                <h1>Welcome to Trugle</h1>
+                <p>The browser dedicated to showing you the truth</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
