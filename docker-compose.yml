@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongo-database
+    environment:
+      MONGO_INITDB_DATABASE: data-center # automatically create an empty data-center database on the first container startup
+    network_mode: host # run the container on the host machine's network
+    volumes:
+      - .:/app # bind the container's directory /app to the host machine's root project directory, enabling shared files
