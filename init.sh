@@ -20,5 +20,7 @@ echo -e "\n\n$(tput bold dim)Setting up database..$(tput sgr 0)"
 docker exec -it $CONTAINER_NAME mongosh /app/init-table.js
 
 # Initialize articles
-echo -e "\n\n$(tput bold dim)Retrieving article URLs and saving to the database..$(tput sgr 0)"
-python init-articles.py
+# echo -e "\n\n$(tput bold dim)Retrieving article URLs and saving to the database..$(tput sgr 0)"
+# python init-articles.py
+
+echo -e "\n\n$(tput setaf 2)Initialization DONE$(tput sgr 0)"

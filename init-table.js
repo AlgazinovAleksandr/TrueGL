@@ -1,4 +1,4 @@
-const dbName = "data-center";
+const dbName = "truegl-database";
 const collName = "Articles";
 const adminDB = db.getSiblingDB(dbName); // connect to the database
 
@@ -6,12 +6,12 @@ const adminDB = db.getSiblingDB(dbName); // connect to the database
 adminDB.createCollection(collName, {
     validator: {
         $jsonSchema: {
-            required: ["link", "baseUrl", "status"],
+            required: ["link", "source", "status"],
             properties: {
                 link: {
                     bsonType: "string"
                 },
-                baseUrl: {
+                source: {
                     bsonType: "string"
                 },
                 content: {
