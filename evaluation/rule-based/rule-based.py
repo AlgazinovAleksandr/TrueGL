@@ -1,5 +1,4 @@
 # Rule-Based Reliability Scorer
-
 import os
 import pandas as pd
 import numpy as np
@@ -57,7 +56,7 @@ WEIGHT_STEPS = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 # --- Lexicons and Data for Rules ---
 
-# 1. Lexical Objectivity / Subjectivity
+# Lexical Objectivity / Subjectivity
 # list of words that indicate subjectivity, sensationalism, or strong opinion
 SUBJECTIVE_WORDS = set([
     "terrible", "amazing", "horrible", "fantastic", "best", "worst", "great", "bad",
@@ -96,7 +95,7 @@ SUBJECTIVE_WORDS = set([
 ])
 
 
-# 2. Hedging / Epistemic Modality
+# Hedging / Epistemic Modality
 # list of words indicating uncertainty, caution, approximation, or indirectness
 HEDGING_WORDS = set([
     "might", "could", "may", "perhaps", "suggests", "seems", "likely", "possibly",
@@ -524,25 +523,20 @@ single_rule_metrics_df.to_csv(single_rule_metrics_summary_path, index=False)
 print(f"\nSummary of single rule metrics saved to {single_rule_metrics_summary_path}")
 
 
-# Store all combination details for the final CSV
+# Store best combinations for 2, 3, 4, 5 rules
+best_combinations_by_num_rules = {} # Stores {num_rules: [{metrics, df, weights}, ...]}
+
 # Iterate through combinations of 2 to 5 rules
 for num_rules_to_combine in range(2, len(all_rule_names) + 1):
     print(f"\n--- Running Grid Search for Combinations of {num_rules_to_combine} Rules ---")
     
+    current_num_rule_best_combos = [] # To store best 2 for current num_rules
+
     # Generate all possible combinations of rule names
     for combo in combinations(all_rule_names, num_rules_to_combine):
         combo_abbreviations = sorted([RULE_ABBREVIATIONS[rule] for rule in combo])
         combination_name_abbrev = "_".join(combo_abbreviations)
         
-        combo_output_dir = os.path.join(output_root_dir, f"combo_{combination_name_abbrev}")
-        os.makedirs(combo_output_dir, exist_ok=True)
-        
-        print(f"\nEvaluating combination: {combination_name_abbrev}")
-
-        best_mae_for_combo = float('inf')
-        best_weights_for_combo = {}
-        best_df_for_combo = None
-
         # Generate weights using a grid search approach
         def generate_weights_recursive(current_rules_idx, current_weights_sum, current_weights_list):
             if current_rules_idx == len(combo) - 1:
@@ -553,8 +547,8 @@ for num_rules_to_combine in range(2, len(all_rule_names) + 1):
                 return
 
             for w in WEIGHT_STEPS:
-                # Only consider weights > 0.0 for initial weights in the combination
-                if w == 0.0 and len(combo) > 1:
+                # Ensure individual weights are > 0.0 for rules in the combination
+                if w == 0.0: # Skip 0.0 weights within the combination
                     continue
                 if current_weights_sum + w <= 1.0:
                     yield from generate_weights_recursive(
@@ -564,6 +558,8 @@ for num_rules_to_combine in range(2, len(all_rule_names) + 1):
                     )
 
         weight_combinations_raw = list(generate_weights_recursive(0, 0.0, []))
+        
+        # Filter for combinations where sum is 1.0 and ALL weights are strictly > 0.0
         valid_weight_combinations = []
         for wc in weight_combinations_raw:
             if np.isclose(sum(wc), 1.0) and all(w > 0.0 for w in wc):
@@ -573,11 +569,14 @@ for num_rules_to_combine in range(2, len(all_rule_names) + 1):
             print(f"No valid weight combinations (all weights > 0.0) found for {combination_name_abbrev}. Skipping.")
             continue
 
-        print(f"Testing {len(valid_weight_combinations)} weight configurations for this combination (all weights > 0.0).")
+        print(f"Testing {len(valid_weight_combinations)} weight configurations for {combination_name_abbrev} (all weights > 0.0).")
         
-        combo_metrics = [] # To store metrics for all weight sets within this combination
+        best_r2_for_this_combo_type = -float('inf') # Initialize with negative infinity for R2
+        best_metrics_for_this_combo_type = None
+        best_df_for_this_combo_type = None
+        best_weights_for_this_combo_type = None
 
-        for weight_idx, weights_list in enumerate(tqdm(valid_weight_combinations, desc=f"Weights for {combination_name_abbrev}")):
+        for weights_list in tqdm(valid_weight_combinations, desc=f"Weights for {combination_name_abbrev}"):
             current_weights = {combo[i]: weights_list[i] for i in range(len(combo))}
             
             temp_df = df_eval.copy()
@@ -594,54 +593,85 @@ for num_rules_to_combine in range(2, len(all_rule_names) + 1):
                 temp_df['labels'], temp_df[f'combined_score_{combination_name_abbrev}']
             )
 
-            metrics_data = {
-                "combination": combination_name_abbrev,
-                "weights": current_weights,
-                "MAE": mae,
-                "RMSE": rmse,
-                "R2": r2,
-                "Std Dev of Predictions": std_dev,
-                "Valid Samples": valid_samples_count
-            }
-            combo_metrics.append(metrics_data)
-            overall_results_summary.append(metrics_data) # Add to overall summary
+            # Compare by R2 score (higher is better)
+            if not np.isnan(r2) and r2 > best_r2_for_this_combo_type:
+                best_r2_for_this_combo_type = r2
+                best_metrics_for_this_combo_type = {
+                    "combination": combination_name_abbrev,
+                    "weights": current_weights,
+                    "MAE": mae,
+                    "RMSE": rmse,
+                    "R2": r2,
+                    "Std Dev of Predictions": std_dev,
+                    "Valid Samples": valid_samples_count
+                }
+                best_df_for_this_combo_type = temp_df.copy()
+                best_weights_for_this_combo_type = current_weights
 
-            # Keep track of the best performing weights for this combination
-            if not np.isnan(mae) and mae < best_mae_for_combo:
-                best_mae_for_combo = mae
-                best_weights_for_combo = current_weights
-                best_df_for_combo = temp_df.copy() # Store the DataFrame with best scores
+        if best_metrics_for_this_combo_type:
+            current_num_rule_best_combos.append({
+                "metrics": best_metrics_for_this_combo_type,
+                "df": best_df_for_this_combo_type,
+                "weights": best_weights_for_this_combo_type
+            })
+    
+    # Sort by R2 score (descending)
+    current_num_rule_best_combos.sort(key=lambda x: x['metrics']['R2'] if not np.isnan(x['metrics']['R2']) else -float('inf'), reverse=True)
+    best_combinations_by_num_rules[num_rules_to_combine] = current_num_rule_best_combos[:2]
 
-        if best_df_for_combo is not None:
-            best_combo_csv_path = os.path.join(combo_output_dir, f"{combination_name_abbrev}_best.csv")
-            os.makedirs(os.path.dirname(best_combo_csv_path), exist_ok=True)
-            best_df_for_combo[['statement', 'labels', f'combined_score_{combination_name_abbrev}'] + [f'score_{r}' for r in combo]].to_csv(best_combo_csv_path, index=False)
-            print(f"Saved best performing combination details for {combination_name_abbrev} to {best_combo_csv_path}")
 
-            # Save histogram for the best performing weights of this combination
-            hist_filename = os.path.join(combo_output_dir, f'hist_{combination_name_abbrev}.png')
-            plt.figure(figsize=(10, 6))
-            sns.histplot(best_df_for_combo[f'combined_score_{combination_name_abbrev}'].dropna(), bins=20, kde=True, color='purple')
-            plt.title(f'Histogram of Combined Scores for {combination_name_abbrev} (Best Weights)')
-            plt.xlabel('Combined Reliability Score')
-            plt.ylabel('Frequency')
-            plt.grid(axis='y', alpha=0.75)
-            plt.savefig(hist_filename)
-            plt.close()
-            print(f"Saved histogram for best performing combination to {hist_filename}")
+# --- Save Best Combinations (2, 3, 4, 5 rules) ---
+print("\n--- Saving Best Combinations (2, 3, 4, 5 rules) ---")
+for num_rules, combos_list in best_combinations_by_num_rules.items():
+    for i, combo_data in enumerate(combos_list):
+        metrics = combo_data['metrics']
+        df_to_save = combo_data['df']
+        weights = combo_data['weights']
         
-        # Save a summary CSV for all weight configurations within this combination
-        combo_metrics_df = pd.DataFrame(combo_metrics)
-        combo_metrics_summary_path = os.path.join(combo_output_dir, f"{combination_name_abbrev}_metrics.csv")
-        combo_metrics_df.to_csv(combo_metrics_summary_path, index=False)
-        print(f"Saved all weight metrics for {combination_name_abbrev} to {combo_metrics_summary_path}")
+        combination_name_abbrev = metrics['combination']
+        
+        combo_output_dir = os.path.join(output_root_dir, f"{num_rules}_rules_best")
+        os.makedirs(combo_output_dir, exist_ok=True)
+
+        # Save metrics to CSV
+        metrics_filename = os.path.join(combo_output_dir, f"{combination_name_abbrev}_best_{i+1}_metrics.csv")
+        pd.DataFrame([metrics]).to_csv(metrics_filename, index=False)
+        print(f"Saved best {i+1} metrics for {num_rules} rules ({combination_name_abbrev}) to {metrics_filename}")
+
+        # Save detailed CSV with scores
+        detailed_csv_filename = os.path.join(combo_output_dir, f"{combination_name_abbrev}_best_{i+1}_detailed.csv")
+        # Ensure all score columns for the specific combination are included
+        score_cols_to_include = [f'score_{rule}' for rule in weights.keys()]
+        df_to_save[['statement', 'labels', f'combined_score_{combination_name_abbrev}'] + score_cols_to_include].to_csv(detailed_csv_filename, index=False)
+        print(f"Saved best {i+1} detailed scores for {num_rules} rules ({combination_name_abbrev}) to {detailed_csv_filename}")
+
+        # Save histogram
+        hist_filename = os.path.join(combo_output_dir, f'hist_{combination_name_abbrev}_best_{i+1}.png')
+        plt.figure(figsize=(10, 6))
+        sns.histplot(df_to_save[f'combined_score_{combination_name_abbrev}'].dropna(), bins=20, kde=True, color='purple')
+        plt.title(f'Histogram of Combined Scores for {combination_name_abbrev} (Best {i+1} of {num_rules} Rules)')
+        plt.xlabel('Combined Reliability Score')
+        plt.ylabel('Frequency')
+        plt.grid(axis='y', alpha=0.75)
+        plt.savefig(hist_filename)
+        plt.close()
+        print(f"Saved histogram for best {i+1} combination of {num_rules} rules to {hist_filename}")
 
 # --- Overall Combinations Summary ---
 print("\n--- Generating Overall Combinations Summary ---")
-overall_summary_df = pd.DataFrame(overall_results_summary)
+# Collect all metrics from single rules and the selected best combinations
+final_overall_summary_list = []
+for item in overall_results_summary:
+    final_overall_summary_list.append(item)
+
+for num_rules, combos_list in best_combinations_by_num_rules.items():
+    for combo_data in combos_list:
+        final_overall_summary_list.append(combo_data['metrics'])
+
+overall_summary_df = pd.DataFrame(final_overall_summary_list)
 overall_summary_df_path = os.path.join(output_root_dir, "overall_combinations_summary.csv")
 overall_summary_df.to_csv(overall_summary_df_path, index=False)
-print(f"Overall summary of all combinations and their metrics saved to {overall_summary_df_path}")
+print(f"Overall summary of selected combinations and their metrics saved to {overall_summary_df_path}")
 
 # Display best overall performing combination
 if not overall_summary_df.empty:
@@ -650,18 +680,20 @@ if not overall_summary_df.empty:
     ]
 
     if not filtered_overall_summary_df.empty:
-        overall_summary_df_sorted = filtered_overall_summary_df.sort_values(by='MAE', ascending=True)
+        overall_summary_df_sorted = filtered_overall_summary_df.sort_values(by='R2', ascending=False)
         best_overall_combo = overall_summary_df_sorted.iloc[0]
-        print("\n--- Best Overall Performing Combination (by MAE, with all active rule weights > 0.0) ---")
+        print("\n--- Best Overall Performing Combination (by R2, with all active rule weights > 0.0) ---")
         print(best_overall_combo.to_string())
 
-        # Optionally save the best overall metrics to a separate file
         best_overall_combo_path = os.path.join(output_root_dir, "best_overall_combination.json")
         with open(best_overall_combo_path, 'w') as f:
-            json.dump(best_overall_combo.to_dict(), f, indent=4)
+            serializable_combo = best_overall_combo.to_dict()
+            if isinstance(serializable_combo.get('weights'), dict):
+                serializable_combo['weights'] = str(serializable_combo['weights'])
+            json.dump(serializable_combo, f, indent=4)
         print(f"\nBest overall combination details saved to {best_overall_combo_path}")
     else:
         print("\nNo combination found where all active rule weights are greater than 0.0. Displaying overall best without this constraint:")
-        overall_summary_df_sorted = overall_summary_df.sort_values(by='MAE', ascending=True)
+        overall_summary_df_sorted = overall_summary_df.sort_values(by='R2', ascending=False)
         best_overall_combo = overall_summary_df_sorted.iloc[0]
         print(best_overall_combo.to_string())
