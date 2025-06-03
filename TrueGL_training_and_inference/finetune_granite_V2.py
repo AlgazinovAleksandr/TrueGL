@@ -14,12 +14,14 @@ from transformers import (
 # === CONFIG ===
 MODEL_PATH = "/root/Fine-Tuning_Truth/granite-3.1-1b-a400m-base" # default
 CSV_PATH = "/root/Fine-Tuning_Truth/all_articles_fine_tuning.csv"
-OUTPUT_DIR = "/root/Fine-Tuning_Truth/granite-finetuned-articles"
-BATCH_SIZE = 7 # 16 and 8 might be too much, 7 works
-EPOCHS = 3
-MAX_LENGTH = 1660
+OUTPUT_DIR = "/root/Fine-Tuning_Truth/granite-V2-articles"
+# bs = 8, and MAX_LENGTH = 1670 works
+# bs = 7 and MAX_LENGTH = 1910 works
+BATCH_SIZE = 6 # 16 and 8 might be too much, 7 works
+EPOCHS = 5
+MAX_LENGTH = 2240 # 2240 works
 LEARNING_RATE = 3e-5
-VAL_SIZE = 0.1   # 10% for validation
+VAL_SIZE = 0.02   # 2% for validation
 
 # === Custom Dataset ===
 class StatementDataset(Dataset):
@@ -37,7 +39,8 @@ class StatementDataset(Dataset):
         label = str(self.labels[idx])
         
         # Format the input for causal LM
-        full_text = f"Classify this statement as true, false, or unknown:\nStatement: {text}\nLabel: {label}"
+        # IT IS VERY IMPORTANT TO CHANGE THIS LATER
+        full_text = f"Assess the reliability of the following statement on a scale of 0.0 (completely unreliable) to 1.0 (perfectly reliable). Consider factors such as factual accuracy, verifiability, number of alternative viewpoints, logical coherence (the statement is more reliable if: it has no logical contradictions with facts that are easily confirmable, or it has no contradictions within the statement itself), and evidence transparency (if behind a statement there are transparent methods such as statistical data, the statement is more reliable). Provide only the numerical score:\nStatement: {text}\nLabel: {label}"
         
         encoding = self.tokenizer(
             full_text,
@@ -131,7 +134,7 @@ def main():
         save_total_limit=2,
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
-        gradient_accumulation_steps=2,
+        gradient_accumulation_steps=8,
         optim="adamw_torch",
         lr_scheduler_type="cosine",
         warmup_steps=100,
