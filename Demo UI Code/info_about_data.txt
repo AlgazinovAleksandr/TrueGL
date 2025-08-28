@@ -1,1 +1,0 @@
-https://github.com/sciai-lab/Truth_is_Universal - this is the data used in the paper
