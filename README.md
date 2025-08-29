@@ -7,8 +7,8 @@ Users can sort results by this truth parameter or apply a filter to prioritize t
 A hoverable icon next to each score provides a brief explanation of the AI’s analysis, adding transparency. 
 The interface adopts a clean, academic design with a prominent search bar, ensuring clarity and ease of use while reinforcing the focus on truth and reliability.
 
-Our model is publicly available at https://huggingface.co/JoydeepC/TrueGL_Granite/tree/main
+Our model is publicly available at https://huggingface.co/JoydeepC/trueGL.
 
-Note that the project is created for educational and research purposes only and is not intended for commercial use. The data used for training and fine-tuning the AI models is either collected from open-sources or AI-generated and is not collected or used in any way that violates privacy or ethical guidelines.
+Note that the project is created for educational and research purposes only and is not intended for commercial use. The data used for training and fine-tuning the AI models is either collected from open sources or AI-generated and is not collected or used in any way that violates privacy or ethical guidelines.
 
-We are always looking for the motivated collaborators to join us in this exciting project. If you are interested in contributing to the development of this search engine, please feel free to reach out to us at algazinovalexandr@gmail.com.
+We are always looking for motivated collaborators to join us in this exciting project. If you are interested in contributing to the development of this search engine, please feel free to reach out to us at algazinovalexandr@gmail.com.
